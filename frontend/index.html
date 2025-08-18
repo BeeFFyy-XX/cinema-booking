@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Онлайн-кіно — Бронювання</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header>
+    <h1>🎬 Онлайн-кіно</h1>
+    <nav>
+      <button id="nav-afisha">Афіша</button>
+      <button id="nav-bookings">Мої бронювання</button>
+      <button id="nav-admin" style="display:none;">Admin</button>
+      <span id="auth-zone"></span>
+    </nav>
+  </header>
+  <main id="app"></main>
+  <template id="tpl-movie-card">
+    <div class="movie-card">
+      <img class="poster" alt="poster" />
+      <div class="info">
+        <h3 class="title"></h3>
+        <p class="desc"></p>
+        <div class="actions">
+          <button class="btn-sessions">Сеанси</button>
+        </div>
+      </div>
+    </div>
+  </template>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
