@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import Session from '../models/Session.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import moment from 'moment';
 
 const router = Router();
 
@@ -13,6 +14,13 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
   try {
+    const { dateTime } = req.body;
+
+    // Перевірка чи дата в майбутньому
+    if (new Date(dateTime) <= new Date()) {
+      return res.status(400).json({ error: 'Дата сеансу повинна бути в майбутньому' });
+    }
+
     const item = await Session.create({ ...req.body, takenSeats: [] });
     res.status(201).json(item);
   } catch (e) { next(e); }
@@ -27,6 +35,13 @@ router.get('/:id', async (req, res, next) => {
 
 router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   try {
+    const { dateTime } = req.body;
+
+    // Перевірка чи дата в майбутньому
+    if (dateTime && new Date(dateTime) <= new Date()) {
+      return res.status(400).json({ error: 'Дата сеансу повинна бути в майбутньому' });
+    }
+
     const item = await Session.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(item);
   } catch (e) { next(e); }

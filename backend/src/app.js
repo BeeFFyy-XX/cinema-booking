@@ -32,6 +32,7 @@ app.use('/api/sessions', sessionRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/payments', paymentRoutes);
 
+
 // error handler
 app.use((err, req, res, next) => {
   console.error(err);

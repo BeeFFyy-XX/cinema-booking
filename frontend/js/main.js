@@ -21,17 +21,101 @@ function initAuthZone() {
     authZone.appendChild(el('button', { class:'ghost', onclick: () => { logout(); initAuthZone(); showAfisha(); } }, 'Вийти'));
   } else {
     const emailI = el('input', { class:'input', placeholder:'email' });
+    const emailError = el('div', { class: 'error-text' });
+
     const passI = el('input', { class:'input', placeholder:'пароль', type:'password' });
+    const passError = el('div', { class: 'error-text' });
+
+    // Валідація email при введенні
+    emailI.addEventListener('input', () => {
+      const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailI.value);
+      emailError.textContent = isValid ? '' : 'Некоректний формат email';
+      emailI.style.border = isValid ? '' : '2px solid red';
+    });
+
+    // Валідація пароля при введенні
+    passI.addEventListener('input', () => {
+      const isValid = passI.value.length >= 6;
+      passError.textContent = isValid ? '' : 'Мінімум 6 символів';
+      passI.style.border = isValid ? '' : '2px solid red';
+    });
+
     const nameI = el('input', { class:'input', placeholder:'імʼя' });
     const loginBtn = el('button', { onclick: async () => {
-        await login(emailI.value, passI.value); initAuthZone(); showAfisha();
+        // Перевірка перед відправкою
+        let hasError = false;
+
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailI.value)) {
+          emailError.textContent = 'Введіть коректний email';
+          emailI.style.border = '2px solid red';
+          hasError = true;
+        }
+
+        if (passI.value.length < 6) {
+          passError.textContent = 'Пароль закороткий (мін. 6 символів)';
+          passI.style.border = '2px solid red';
+          hasError = true;
+        }
+
+        if (hasError) return;
+
+        try {
+          await login(emailI.value, passI.value);
+          initAuthZone();
+          showAfisha();
+        } catch (err) {
+          // Показуємо повідомлення про помилку
+          alert(err.message);
+        }
       }}, 'Увійти');
+
     const regBtn = el('button', { class:'ghost', onclick: async () => {
-        await register(nameI.value||'Користувач', emailI.value, passI.value); initAuthZone(); showAfisha();
+        // Аналогічна перевірка для реєстрації
+        let hasError = false;
+
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailI.value)) {
+          emailError.textContent = 'Введіть коректний email';
+          emailI.style.border = '2px solid red';
+          hasError = true;
+        }
+
+        if (passI.value.length < 6) {
+          passError.textContent = 'Пароль закороткий (мін. 6 символів)';
+          passI.style.border = '2px solid red';
+          hasError = true;
+        }
+
+        if (nameI.value.trim().length < 2) {
+          alert("Ім'я повинно містити мінімум 2 символи");
+          hasError = true;
+        }
+
+        if (hasError) return;
+
+        try {
+          await register(nameI.value || 'Користувач', emailI.value, passI.value);
+          initAuthZone();
+          showAfisha();
+        } catch (err) {
+          alert('Помилка реєстрації: ' + err.message);
+        }
       }}, 'Реєстрація');
+
     const apiI = el('input', { class:'input', placeholder:'API http://localhost:4000/api', style:'min-width:220px' });
     const setBtn = el('button', { class:'ghost', onclick: () => { setApiBase(apiI.value); alert('API base змінено'); } }, 'Задати API');
-    const wrap = el('div', { class:'auth' }, [nameI, emailI, passI, loginBtn, regBtn, apiI, setBtn]);
+
+    const wrap = el('div', { class:'auth' }, [
+      nameI,
+      emailI,
+      emailError,
+      passI,
+      passError,
+      loginBtn,
+      regBtn,
+      apiI,
+      setBtn
+    ]);
+
     authZone.appendChild(wrap);
   }
   updateNavVisibility();
@@ -185,6 +269,8 @@ async function showAdminPanel() {
       el('button', { onclick: showMoviesAdmin }, 'Фільми'),
       el('button', { onclick: showHallsAdmin }, 'Зали'),
       el('button', { onclick: showSessionsAdmin }, 'Сеанси'),
+      el('button', { onclick: showScheduleAdmin }, 'Розклад'),
+      el('button', { onclick: showBookingsAdmin }, 'Броні користувачів'),
       el('button', { class:'ghost', onclick: showAfisha }, '← Назад')
     ]),
     el('div', { id:'admin-content' })
@@ -192,8 +278,102 @@ async function showAdminPanel() {
   app.appendChild(container);
   showMoviesAdmin();
 }
+// ---------- Bookings Admin ----------
+async function showBookingsAdmin() {
+  if (!currentUser() || currentUser().role !== 'admin') { alert('Лише для адмінів'); return; }
+  clear(document.getElementById('admin-content'));
+  const root = document.getElementById('admin-content');
+
+  const list = await apiGet('/bookings/admin');
+
+  root.appendChild(el('div', { class:'section' }, [
+    el('h2', {}, 'Бронювання користувачів'),
+    el('table', {}, [
+      el('thead', {}, el('tr', {}, [
+        el('th', {}, 'Користувач'),
+        el('th', {}, 'Фільм'),
+        el('th', {}, 'Час'),
+        el('th', {}, 'Місця'),
+        el('th', {}, 'Статус'),
+        el('th', {}, 'Дії')
+      ])),
+      el('tbody', {}, list.map(b => {
+        const dt = new Date(b.session?.dateTime);
+        const places = b.tickets.map(t => `р${t.row}-м${t.seat}`).join(', ');
+
+        // Кнопки дій
+        const cancelBtn = el('button', { class:'ghost', onclick: async () => {
+            if(confirm('Скасувати цю бронь?')) {
+              try {
+                await apiPost(`/bookings/${b._id}/cancel`, {});
+                showBookingsAdmin();
+              } catch(e) { alert(e.message); }
+            }
+          }}, 'Скасувати');
+
+        const editBtn = el('button', { onclick: async () => {
+            const newPlaces = prompt('Введіть нові місця у форматі р1-м1,р1-м2,...', places);
+            if(!newPlaces) return;
+            const tickets = newPlaces.split(',').map(p => {
+              const [r, m] = p.replace('р','').replace('м','').split('-').map(Number);
+              return { row:r, seat:m };
+            });
+            try {
+              await apiPut(`/bookings/${b._id}`, { tickets });
+              showBookingsAdmin();
+            } catch(e) { alert(e.message); }
+          }}, 'Редагувати');
+
+        return el('tr', {}, [
+          el('td', {}, b.user?.name || 'Анонім'),
+          el('td', {}, b.session?.movie?.title || ''),
+          el('td', {}, dt.toLocaleString()),
+          el('td', {}, places),
+          el('td', {}, b.paymentStatus),
+          el('td', {}, [editBtn, ' ', cancelBtn])
+        ]);
+      }))
+    ])
+  ]));
+}
 
 function toRow(cells=[]) { return el('tr', {}, cells.map(td => el('td', {}, td))); }
+
+// ---------- Schedule Admin ----------
+async function showScheduleAdmin() {
+  const root = document.getElementById('admin-content');
+  clear(root);
+
+  const sessions = await apiGet('/sessions?populate=movie,hall');
+
+  if (!sessions.length) {
+    root.appendChild(el('div', {}, 'Сеансів поки немає'));
+    return;
+  }
+
+  const tbody = el('tbody', {}, sessions.map(s => {
+    const dt = new Date(s.dateTime);
+    return toRow([
+      s.movie?.title || '',
+      s.hall?.name || '',
+      dt.toLocaleString('uk-UA'),
+      s.price + ' грн'
+    ]);
+  }));
+
+  root.appendChild(el('div', { class:'section' }, [
+    el('h3', {}, 'Розклад сеансів'),
+    el('table', {}, [
+      el('thead', {}, el('tr', {}, [
+        el('th', {}, 'Фільм'),
+        el('th', {}, 'Зал'),
+        el('th', {}, 'Дата/час'),
+        el('th', {}, 'Ціна')
+      ])),
+      tbody
+    ])
+  ]));
+}
 
 // ---- Movies CRUD ----
 async function showMoviesAdmin() {
@@ -272,10 +452,14 @@ async function showHallsAdmin() {
   ]));
 }
 
+
 // ---- Sessions CRUD ----
 async function showSessionsAdmin() {
   const root = document.getElementById('admin-content'); clear(root);
-  const [movies, halls, sessions] = await Promise.all([apiGet('/movies'), apiGet('/halls'), apiGet('/sessions')]);
+  const [movies, halls, sessions] = await Promise.all([apiGet('/movies'), apiGet('/halls'), apiGet('/sessions'), apiGet('/sessions?populate=movie,hall')]);
+
+
+
 
   const movieSel = el('select', { class: 'input' }, movies.map(m => el('option', { value: m._id }, m.title)));
   const hallSel = el('select', { class: 'input' }, halls.map(h => el('option', { value: h._id }, h.name)));
@@ -284,9 +468,46 @@ async function showSessionsAdmin() {
 
   const addBtn = el('button', { onclick: async () => {
       const iso = dtI.value ? new Date(dtI.value).toISOString() : null;
-      await apiPost('/sessions', { movie: movieSel.value, hall: hallSel.value, dateTime: iso, price: +priceI.value });
-      showSessionsAdmin();
-    } }, 'Додати сеанс');
+
+      // Перевірка на фронтенді
+      if (!dtI.value) {
+        alert('Будь ласка, введіть дату сеансу');
+        return;
+      }
+
+      const selectedDate = new Date(dtI.value);
+      const currentDate = new Date();
+
+      if (selectedDate <= currentDate) {
+        const formattedSelected = selectedDate.toLocaleString('uk-UA', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        const formattedCurrent = currentDate.toLocaleString('uk-UA', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        alert(`Дата сеансу повинна бути в майбутньому!\n\nВибрана дата: ${formattedSelected}\nПоточна дата: ${formattedCurrent}`);
+        return;
+      }
+
+      try {
+        await apiPost('/sessions', { movie: movieSel.value, hall: hallSel.value, dateTime: iso, price: +priceI.value });
+        showSessionsAdmin();
+      } catch (e) {
+        console.error(e);
+        alert('Помилка при додаванні сеансу: ' + e.message);
+      }
+    }
+  }, 'Додати сеанс');
 
   root.appendChild(el('div', { class:'section' }, [
     el('h3', {}, 'Сеанси'),
@@ -295,8 +516,34 @@ async function showSessionsAdmin() {
   ]));
 
   const tbody = el('tbody', {}, sessions.map(s => {
-    const mSel = el('select', { class:'input' }, movies.map(m => el('option', { value:m._id, selected: (s.movie?._id||s.movie)===m._id }, m.title)));
-    const hSel = el('select', { class:'input' }, halls.map(h => el('option', { value:h._id, selected: (s.hall?._id||s.hall)===h._id }, h.name)));
+    // Функція для отримання ID фільму незалежно від того, чи він попульований
+    const getMovieId = () => {
+      if (typeof s.movie === 'string') return s.movie; // Якщо це просто ID
+      return s.movie?._id || s.movie; // Якщо це об'єкт
+    };
+
+    const currentMovieId = getMovieId();
+    const mSel = el('select', { class:'input' }, movies.map(m => {
+      const selected = currentMovieId === m._id;
+      return el('option', {
+        value: m._id,
+        selected: selected
+      }, m.title);
+    }));
+    // Аналогічно для залу
+    const getHallId = () => {
+      if (typeof s.hall === 'string') return s.hall;
+      return s.hall?._id || s.hall;
+    };
+
+    const currentHallId = getHallId();
+    const hSel = el('select', { class:'input' }, halls.map(h => {
+      const selected = currentHallId === h._id;
+      return el('option', {
+        value: h._id,
+        selected: selected
+      }, h.name);
+    }));
     const dt = new Date(s.dateTime);
     const dtLocal = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0,16);
     const dtEdit = el('input', { class:'input', type:'datetime-local', value: dtLocal });
@@ -304,13 +551,58 @@ async function showSessionsAdmin() {
 
     const save = el('button', { onclick: async () => {
         const iso = dtEdit.value ? new Date(dtEdit.value).toISOString() : null;
-        await apiPut('/sessions/'+s._id, { movie:mSel.value, hall:hSel.value, dateTime: iso, price:+priceEdit.value });
-        showSessionsAdmin();
-      } }, 'Зберегти');
+
+        // Перевірка для редагування
+        if (!dtEdit.value) {
+          alert('Будь ласка, введіть дату сеансу');
+          return;
+        }
+
+        const selectedDate = new Date(dtEdit.value);
+        const currentDate = new Date();
+
+        if (selectedDate <= currentDate) {
+          const formattedSelected = selectedDate.toLocaleString('uk-UA', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+
+          const formattedCurrent = currentDate.toLocaleString('uk-UA', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+
+          alert(`Дата сеансу повинна бути в майбутньому!\n\nВибрана дата: ${formattedSelected}\nПоточна дата: ${formattedCurrent}`);
+          return;
+        }
+
+        try {
+          await apiPut('/sessions/'+s._id, { movie:mSel.value, hall:hSel.value, dateTime: iso, price:+priceEdit.value });
+          showSessionsAdmin();
+        } catch (e) {
+          console.error(e);
+          alert('Помилка при оновленні сеансу: ' + e.message);
+        }
+      }
+    }, 'Зберегти');
 
     const del = el('button', { class:'ghost', onclick: async () => {
-        if (confirm('Видалити цей сеанс?')) { await apiDelete('/sessions/'+s._id); showSessionsAdmin(); }
-      } }, 'Видалити');
+        if (confirm('Видалити цей сеанс?')) {
+          try {
+            await apiDelete('/sessions/'+s._id);
+            showSessionsAdmin();
+          } catch (e) {
+            alert('Помилка при видаленні: ' + e.message);
+          }
+        }
+      }
+    }, 'Видалити');
 
     return toRow([mSel, hSel, dtEdit, priceEdit, el('div', {}, [save, ' ', del])]);
   }));

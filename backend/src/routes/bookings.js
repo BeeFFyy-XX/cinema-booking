@@ -50,4 +50,24 @@ router.post('/:id/cancel', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.get('/admin', requireAuth, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Лише для адмінів' });
+
+    const list = await Booking.find()
+        .populate('user', 'name email') // показуємо ім'я та email
+        .populate({
+          path: 'session',
+          populate: [
+            { path: 'movie', select: 'title duration' },
+            { path: 'hall', select: 'name rows seatsPerRow' }
+          ]
+        });
+
+    res.json(list);
+  } catch (e) {
+    next(e);
+  }
+});
+
 export default router;

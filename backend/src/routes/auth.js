@@ -43,21 +43,33 @@ router.post(
     body('password').isLength({ min: 6 }).withMessage('Пароль має бути не менше 6 символів'),
     async (req, res, next) => {
       try {
-        // Перевіряємо валідність email і password
+        // Валідація
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
-          return res.status(400).json({ errors: errors.array() });
+          return res.status(400).json({
+            error: 'Помилка валідації',
+            details: errors.array().map(e => e.msg)
+          });
         }
 
         const { email, password } = req.body;
+
+        // Чи існує користувач
         const user = await User.findOne({ email });
         if (!user) {
-          return res.status(400).json({ error: 'Неправильний email або пароль' });
+          return res.status(400).json({
+            error: 'Помилка авторизації',
+            details: ['Користувача з таким email не знайдено']
+          });
         }
 
+        // Валідність паролю
         const ok = await user.validatePassword(password);
         if (!ok) {
-          return res.status(400).json({ error: 'Неправильний email або пароль' });
+          return res.status(400).json({
+            error: 'Помилка авторизації',
+            details: ['Невірний пароль']
+          });
         }
 
         const token = signJwt(user);

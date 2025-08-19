@@ -13,8 +13,9 @@ export async function login(email, password) {
   localStorage.setItem('token', r.token);
   localStorage.setItem('user', JSON.stringify(r.user));
   return r.user;
-  } catch (err){
-    console.error(err);
+  } catch (err) {
+    console.error('Login error:', err);
+    throw new Error('Дані не вірні'); // Додаємо конкретну помилку
   }
 }
 

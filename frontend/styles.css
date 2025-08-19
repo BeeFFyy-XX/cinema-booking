@@ -23,7 +23,18 @@ label { font-size:14px; opacity:0.9 }
 .seat.selected { background:#1a2f14; border-color:#2f6a2a }
 .toolbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px }
 .card { background:#151522; border:1px solid #1f1f2a; border-radius:12px; padding:12px }
-table { width:100%; border-collapse: collapse; }
-td, th { padding:8px; border-bottom:1px solid #222236 }
+table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed; /* фіксує ширину колонок */
+}
+
+th, td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #333; /* для видимості */
+}
 .small { font-size:12px; opacity:0.8 }
 .auth { display:flex; gap:8px; align-items:center }
+.input.invalid { border-color: red; }
+.error-text { color: red; font-size: 0.8rem; height: 1em; }
